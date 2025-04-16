@@ -188,8 +188,8 @@ class SegNetMTAN(nn.Module):
         dec_1_p = self.decoderBlock1(dec_1_u)
 
         # ATTENTION MODULES
-        enc_att_1, enc_att_2, enc_att_3, enc_att_4, enc_att_5 = ([] for i in range(5)) # encoder attention modules
-        dec_att_1, dec_att_2, dec_att_3, dec_att_4, dec_att_5 = ([] for i in range(5)) # decoder attention modules
+        enc_att = {i: [] for i in range(1, 6)} # encoder attention modules
+        dec_att = {i: [] for i in range(1, 6)} # decoder attention modules
         for task in range(3):
             # Attention modules for encoder
             # conv -> bn -> ReLU -> conv -> bn -> sigmoid
@@ -200,66 +200,66 @@ class SegNetMTAN(nn.Module):
             ea1 = self.encoderAttentionConv1[task](ea1)
             # max pooling
             ea1 = F.max_pool2d(ea1, kernel_size=2, stride=2)
-            enc_att_1.append(ea1)
+            enc_att[1].append(ea1)
 
-            ea2 = self.encoderAttentionModule2[task](torch.cat([x2, enc_att_1[task]], dim=1))
+            ea2 = self.encoderAttentionModule2[task](torch.cat([x2, enc_att[1][task]], dim=1))
             ea2 = (ea2 * enc_2_p)
             ea2 = self.encoderAttentionConv2[task](ea2)
             ea2 = F.max_pool2d(ea2, kernel_size=2, stride=2)
-            enc_att_2.append(ea2)
+            enc_att[2].append(ea2)
 
-            ea3 = self.encoderAttentionModule3[task](torch.cat([x3, enc_att_2[task]], dim=1)) # merge
+            ea3 = self.encoderAttentionModule3[task](torch.cat([x3, enc_att[2][task]], dim=1)) # merge
             ea3 = (ea3 * enc_3_p)
             ea3 = self.encoderAttentionConv3[task](ea3)
             ea3 = F.max_pool2d(ea3, kernel_size=2, stride=2)
-            enc_att_3.append(ea3)
+            enc_att[3].append(ea3)
 
-            ea4 = self.encoderAttentionModule4[task](torch.cat([x4, enc_att_3[task]], dim=1))
+            ea4 = self.encoderAttentionModule4[task](torch.cat([x4, enc_att[3][task]], dim=1))
             ea4 = (ea4 * enc_4_p)
             ea4 = self.encoderAttentionConv4[task](ea4)
             ea4 = F.max_pool2d(ea4, kernel_size=2, stride=2)
-            enc_att_4.append(ea4)
+            enc_att[4].append(ea4)
 
-            ea5 = self.encoderAttentionModule5[task](torch.cat([x5, enc_att_4[task]], dim=1))
+            ea5 = self.encoderAttentionModule5[task](torch.cat([x5, enc_att[4][task]], dim=1))
             ea5 = (ea5 * enc_5_p)
             ea5 = self.encoderAttentionConv5[task](ea5)
             ea5 = F.max_pool2d(ea5, kernel_size=2, stride=2)
-            enc_att_5.append(ea5)
+            enc_att[5].append(ea5)
 
             # Attention modules for decoder
             # upsampling
-            da5 = F.interpolate(enc_att_5[task], scale_factor=2, mode='bilinear', align_corners=True)
+            da5 = F.interpolate(enc_att[5][task], scale_factor=2, mode='bilinear', align_corners=True)
             # conv -> bn -> ReLU
             da5 = self.decoderAttentionConv5[task](da5)
             # merge -> conv -> bn -> ReLU -> conv -> bn -> sigmoid
             da5 = self.decoderAttentionModule5[task](torch.cat([dec_5_u, da5], dim=1))
             # element-wise multiplication with decoder feature map
             da5 = (da5 * dec_5_p)
-            dec_att_5.append(da5)
+            dec_att[5].append(da5)
 
-            da4 = F.interpolate(dec_att_5[task], scale_factor=2, mode='bilinear', align_corners=True)
+            da4 = F.interpolate(dec_att[5][task], scale_factor=2, mode='bilinear', align_corners=True)
             da4 = self.decoderAttentionConv4[task](da4)
             da4 = self.decoderAttentionModule4[task](torch.cat([dec_4_u, da4], dim=1))
             da4 = (da4 * dec_4_p)
-            dec_att_4.append(da4)
+            dec_att[4].append(da4)
 
-            da3 = F.interpolate(da4, scale_factor=2, mode='bilinear', align_corners=True)
+            da3 = F.interpolate(dec_att[4][task], scale_factor=2, mode='bilinear', align_corners=True)
             da3 = self.decoderAttentionConv3[task](da3)
             da3 = self.decoderAttentionModule3[task](torch.cat([dec_3_u, da3], dim=1))
             da3 = (da3 * dec_3_p)
-            dec_att_3.append(da3)
+            dec_att[3].append(da3)
 
-            da2 = F.interpolate(da3, scale_factor=2, mode='bilinear', align_corners=True)
+            da2 = F.interpolate(dec_att[3][task], scale_factor=2, mode='bilinear', align_corners=True)
             da2 = self.decoderAttentionConv2[task](da2)
             da2 = self.decoderAttentionModule2[task](torch.cat([dec_2_u, da2], dim=1))
             da2 = (da2 * dec_2_p)
-            dec_att_2.append(da2)
+            dec_att[2].append(da2)
 
-            da1 = F.interpolate(da2, scale_factor=2, mode='bilinear', align_corners=True)
+            da1 = F.interpolate(dec_att[2][task], scale_factor=2, mode='bilinear', align_corners=True)
             da1 = self.decoderAttentionConv1[task](da1)
             da1 = self.decoderAttentionModule1[task](torch.cat([dec_1_u, da1], dim=1))
             da1 = (da1 * dec_1_p)
-            dec_att_1.append(da1)
+            dec_att[1].append(da1)
 
         # Task prediction layers: 1: semantic segmentation, 2: depth estimation, 3: normal estimation
         task1 = F.log_softmax(self.prediction_task1(dec_att_1[0]), dim=1)
