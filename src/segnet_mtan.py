@@ -153,6 +153,7 @@ class SegNetMTAN(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, return_indices=True, ceil_mode=False)
         if not pretrained:
             self.init_weights()
+        # TODO: use pretrained weights for the encoder
 
     def init_weights(self):
         for m in self.modules():
@@ -204,53 +205,21 @@ class SegNetMTAN(nn.Module):
         dec_1_u = self.unpool(dec_2_p, idx1, output_size=enc_1_p.size())
         dec_1_p = self.decoderBlock1(dec_1_u)
 
-        # Printin all the shapes of the output tensors for each block
-        print("Encoder Block 1 Output Shape: ", enc_1_p.shape)
-        print("Encoder Block 1 Pooling Output Shape: ", x1.shape)
-        print("Encoder Block 1 Output Shape: ", enc_2_p.shape)
-        print("Encoder Block 1 Pooling Output Shape: ", x2.shape)
-        print("Encoder Block 1 Output Shape: ", enc_3_p.shape)
-        print("Encoder Block 1 Pooling Output Shape: ", x3.shape)
-        print("Encoder Block 1 Output Shape: ", enc_4_p.shape)
-        print("Encoder Block 1 Pooling Output Shape: ", x4.shape)
-        print("Encoder Block 1 Output Shape: ", enc_5_p.shape)
-        print("Encoder Block 1 Pooling Output Shape: ", x5.shape)
-        print("Decoder Block 1 Unpooling Output Shape: ", dec_5_u.shape)
-        print("Decoder Block 1 Output Shape: ", dec_5_p.shape)
-        print("Decoder Block 1 Unpooling Output Shape: ", dec_4_u.shape)
-        print("Decoder Block 1 Output Shape: ", dec_4_p.shape)
-        print("Decoder Block 1 Unpooling Output Shape: ", dec_3_u.shape)
-        print("Decoder Block 1 Output Shape: ", dec_3_p.shape)
-        print("Decoder Block 1 Unpooling Output Shape: ", dec_2_u.shape)
-        print("Decoder Block 1 Output Shape: ", dec_2_p.shape)
-        print("Decoder Block 1 Unpooling Output Shape: ", dec_1_u.shape)
-        print("Decoder Block 1 Output Shape: ", dec_1_p.shape)
-        print("ATTENTION")
-
         # ATTENTION MODULES
         enc_att = {i: [] for i in range(1, 6)} # encoder attention modules
         dec_att = {i: [] for i in range(1, 6)} # decoder attention modules
         for task in range(3):
             # Attention modules for encoder
             # conv -> bn -> ReLU -> conv -> bn -> sigmoid
-            print("Encoder Attention Block {} Input Shape: ".format(task+1), enc_1_u.shape)
             ea1 = self.encoderAttentionModule1[task](enc_1_u)
-            print("After convs: ", ea1.shape)
-            print("Multiplied by enc_1_p: ", enc_1_p.shape)
             # element-wise multiplication with encoder feature map
             ea1 = (ea1 * enc_1_p)
-            print("After multiplication: ", ea1.shape)
              # conv -> bn -> ReLU
             ea1 = self.encoderAttentionConv1[task](ea1)
-            print("After conv: ", ea1.shape)
             # max pooling
             ea1 = F.max_pool2d(ea1, kernel_size=2, stride=2)
-            print("After max pooling: ", ea1.shape)
             enc_att[1].append(ea1)
 
-            print("Encoder Attention Block {} Input Shape: ".format(task+2), enc_2_u.shape)
-            print("Encoder Attention Block {} Prev Att Shape: ".format(task+2), enc_att[1][task].shape)
-            print("Concatenation shape: ", torch.cat([enc_2_u, enc_att[1][task]], dim=1).shape)
             ea2 = self.encoderAttentionModule2[task](torch.cat([enc_2_u, enc_att[1][task]], dim=1))
             ea2 = (ea2 * enc_2_p)
             ea2 = self.encoderAttentionConv2[task](ea2)
@@ -286,14 +255,9 @@ class SegNetMTAN(nn.Module):
             da5 = (da5 * dec_5_p)
             dec_att[5].append(da5)
 
-            print("Decoder Attention Block {} Input Shape: ".format(task+1), dec_4_u.shape)
             da4 = F.interpolate(dec_att[5][task], scale_factor=2, mode='bilinear', align_corners=True)
-            print("Decoder Attention Block {} Prev Att Shape: ".format(task+1), dec_att[5][task].shape)
             da4 = self.decoderAttentionConv4[task](da4)
-            print("Concatenation shape: ", torch.cat([dec_4_u, da4], dim=1).shape)
             da4 = self.decoderAttentionModule4[task](torch.cat([dec_4_u, da4], dim=1))
-            print("After convs: ", da4.shape)
-            print("Multiplied by dec_4_p: ", dec_4_p.shape)
             da4 = (da4 * dec_4_p)
             dec_att[4].append(da4)
 
