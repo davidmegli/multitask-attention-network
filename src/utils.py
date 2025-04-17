@@ -276,6 +276,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
         save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models')
     # saving the results of the last epoch in a csv file, the name of the file will be different for each run
     os.makedirs('results', exist_ok=True)
+    opt.task = "multi_task"
     filename = os.path.join('results', f'{opt.task}_lambda_{opt.weight}_T_{opt.temp}.csv')
     with open(filename, 'w') as f:
         f.write('epoch,train_loss_semantic,train_loss_depth,train_loss_normal,test_loss_semantic,test_loss_depth,test_loss_normal\n')
