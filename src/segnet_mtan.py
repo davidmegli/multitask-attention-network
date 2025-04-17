@@ -77,18 +77,6 @@ class SegNetMTAN(nn.Module):
             (6): Linear(in_features=4096, out_features=1000, bias=True)
         )
         ) """
-        # ENCODER
-        self.encoderBlock1A = nn.Sequential(*features[0:3])  # conv1
-        self.encoderBlock1B = nn.Sequential(*features[3:6])  # conv1
-        self.encoderBlock2A = nn.Sequential(*features[7:10])  # conv2
-        self.encoderBlock2B = nn.Sequential(*features[10:13])  # conv2
-        self.encoderBlock3A = nn.Sequential(*features[14:17])  # conv3
-        self.encoderBlock3B = nn.Sequential(*features[17:23])  # conv3
-        self.encoderBlock4A = nn.Sequential(*features[24:27])  # conv4
-        self.encoderBlock4B = nn.Sequential(*features[27:33])  # conv4
-        self.encoderBlock5A = nn.Sequential(*features[34:37])  # conv5
-        self.encoderBlock5B = nn.Sequential(*features[37:43])  # conv5
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, return_indices=True, ceil_mode=False)
 
         # DECODER
         self.unpool = nn.MaxUnpool2d(kernel_size=2, stride=2, padding=0)
@@ -149,7 +137,22 @@ class SegNetMTAN(nn.Module):
         self.prediction_task3 = self.predictionConv(64,3) # Normal
 
         self.logsigma = nn.Parameter(torch.FloatTensor([-0.5, -0.5, -0.5]))
-        self.init_weights()
+        if pretrained:
+            self.init_weights()
+        # ENCODER
+        self.encoderBlock1A = nn.Sequential(*features[0:3])  # conv1
+        self.encoderBlock1B = nn.Sequential(*features[3:6])  # conv1
+        self.encoderBlock2A = nn.Sequential(*features[7:10])  # conv2
+        self.encoderBlock2B = nn.Sequential(*features[10:13])  # conv2
+        self.encoderBlock3A = nn.Sequential(*features[14:17])  # conv3
+        self.encoderBlock3B = nn.Sequential(*features[17:23])  # conv3
+        self.encoderBlock4A = nn.Sequential(*features[24:27])  # conv4
+        self.encoderBlock4B = nn.Sequential(*features[27:33])  # conv4
+        self.encoderBlock5A = nn.Sequential(*features[34:37])  # conv5
+        self.encoderBlock5B = nn.Sequential(*features[37:43])  # conv5
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, return_indices=True, ceil_mode=False)
+        if not pretrained:
+            self.init_weights()
 
     def init_weights(self):
         for m in self.modules():
