@@ -1,3 +1,4 @@
 deprecated
 test.ipynb
 __pycache__/
+*.bat
