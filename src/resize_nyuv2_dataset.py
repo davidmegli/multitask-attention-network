@@ -12,6 +12,17 @@ import argparse
 import fnmatch
 from scipy.ndimage import zoom
 
+def center_crop_to_multiple(arr, multiple=32):
+    h, w = arr.shape[:2]
+    new_h = (h // multiple) * multiple
+    new_w = (w // multiple) * multiple
+    top = (h - new_h) // 2
+    left = (w - new_w) // 2
+    if arr.ndim == 3:
+        return arr[top:top+new_h, left:left+new_w, :]
+    else:
+        return arr[top:top+new_h, left:left+new_w]
+
 
 def resize_and_save(src_path, dst_path, scale_factor):
     for split in ['train', 'val']:
@@ -36,6 +47,7 @@ def resize_and_save(src_path, dst_path, scale_factor):
                 # Use nearest for label, bilinear for the rest
                 order = 0 if subfolder == 'label' else 1
                 resized_arr = zoom(arr, zoom_factors, order=order)
+                resized_arr = center_crop_to_multiple(resized_arr, multiple=32)
 
                 np.save(dst_file, resized_arr.astype(arr.dtype))
 
