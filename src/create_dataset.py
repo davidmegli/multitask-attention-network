@@ -6,6 +6,7 @@ Description: This file contains the necessary classes to load the dataset
 '''
 
 from torch.utils.data.dataset import Dataset
+
 import os
 import torch
 import torch.nn.functional as F
@@ -46,10 +47,11 @@ class NYUv2(Dataset):
 
     Please note that: all baselines and MTAN did NOT apply data augmentation in the original paper.
     """
-    def __init__(self, root, train=True, augmentation=False):
+    def __init__(self, root, train=True, augmentation=False, downsample_ratio=1):
         self.train = train
         self.root = os.path.expanduser(root)
         self.augmentation = augmentation
+        self.downsample_ratio = downsample_ratio
 
         # read the data file
         if train:
@@ -79,13 +81,21 @@ class NYUv2(Dataset):
 
         # apply data augmentation if required
         if self.augmentation:
-            image, semantic, depth, normal = RandomScaleCrop()(image, semantic, depth, normal)
+            scale=[1.0, 1.2, 1.5]
+            scale=[i*self.downsample_ratio for i in scale]
+            image, semantic, depth, normal = RandomScaleCrop(scale)(image, semantic, depth, normal)
             if torch.rand(1) < 0.5:
                 image = torch.flip(image, dims=[2])
                 semantic = torch.flip(semantic, dims=[1])
                 depth = torch.flip(depth, dims=[2])
                 normal = torch.flip(normal, dims=[2])
                 normal[0, :, :] = - normal[0, :, :]
+        elif self.downsample_ratio != 1:
+            # downsample the image
+            image = F.interpolate(image[None, :, :, :], scale_factor=self.downsample_ratio, mode='bilinear', align_corners=True).squeeze(0)
+            semantic = F.interpolate(semantic[None, None, :, :], scale_factor=self.downsample_ratio, mode='nearest').squeeze(0).squeeze(0)
+            depth = F.interpolate(depth[None, :, :, :], scale_factor=self.downsample_ratio, mode='nearest').squeeze(0)
+            normal = F.interpolate(normal[None, :, :, :], scale_factor=self.downsample_ratio, mode='bilinear', align_corners=True).squeeze(0)
 
         return image.float(), semantic.float(), depth.float(), normal.float()
 
