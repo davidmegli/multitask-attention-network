@@ -4,11 +4,10 @@ import torch.nn.functional as F
 import argparse
 import torch.utils.data.sampler as sampler
 from src.segnet_mtan import SegNetMTAN
-from src.train_utils import multi_task_trainer, count_parameters
+from src.utils import multi_task_trainer, count_parameters
 
 from create_dataset import *
 from utils import *
-
 
 parser = argparse.ArgumentParser(description='Multi-task: Attention Network')
 parser.add_argument('--batch_size', default=2, type=int, help='batch size for training')
@@ -27,6 +26,10 @@ print('Using device: {}'.format(device))
 SegNet_MTAN = SegNetMTAN().to(device)
 optimizer = optim.Adam(SegNet_MTAN.parameters(), lr=1e-4)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+
+'''import sys
+print("Model Structure: {}".format(SegNet_MTAN))
+sys.exit(0)'''
 
 print('Parameter Space: ABS: {:.1f}, REL: {:.4f}'.format(count_parameters(SegNet_MTAN),
                                                          count_parameters(SegNet_MTAN) / 24981069))

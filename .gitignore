@@ -2,3 +2,5 @@ deprecated
 test.ipynb
 __pycache__/
 *.bat
+.vscode/
+runs/

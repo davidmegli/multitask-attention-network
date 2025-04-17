@@ -160,7 +160,7 @@ def normal_error(x_pred, x_output):
 
 def multi_task_trainer(train_loader, test_loader, multi_task_model, device, optimizer, scheduler, opt, total_epoch=200, resume=False, log_dir='runs'):
     writer = SummaryWriter(log_dir=log_dir)
-    wandb.init(project="multi-task", config=opt.__dict__)
+    wandb.init(project="multi-task", config=opt.__dict__, dir=log_dir)
 
     start_epoch = 0
     if resume:
@@ -293,7 +293,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
 
 def single_task_trainer(train_loader, test_loader, single_task_model, device, optimizer, scheduler, opt, total_epoch=200, resume=False, log_dir='runs'):
     writer = SummaryWriter(log_dir=log_dir)
-    wandb.init(project=f"single-task-{opt.task}", config=opt.__dict__)
+    wandb.init(project=f"single-task-{opt.task}", config=opt.__dict__, dir=log_dir)
     start_epoch = 0
     if resume:
         start_epoch = load_checkpoint(single_task_model, optimizer, scheduler, directory='models')

@@ -15,6 +15,7 @@ class SegNetMTAN(nn.Module):
         super(SegNetMTAN, self).__init__()
         vgg16 = models.vgg16_bn(pretrained=pretrained)
         features = list(vgg16.features.children())
+        self.class_nb = 13 # NYUv2 13 classes
 
         # VGG16_BN architecture:
         """ 
@@ -76,8 +77,6 @@ class SegNetMTAN(nn.Module):
             (6): Linear(in_features=4096, out_features=1000, bias=True)
         )
         ) """
-        # TODO: dividere in BLock1A e Block1B, ecc -> per estrarre valori 1° e 2°/3° layer del blocco da usare
-        # per l'attenzione
         # ENCODER
         self.encoderBlock1A = nn.Sequential(*features[0:3])  # conv1
         self.encoderBlock1B = nn.Sequential(*features[3:6])  # conv1
@@ -93,11 +92,11 @@ class SegNetMTAN(nn.Module):
 
         # DECODER
         self.unpool = nn.MaxUnpool2d(kernel_size=2, stride=2, padding=0)
-        self.decoderBlock5 = self.decoderConvBlock(512, 512, kernel_size=3, padding=1, n_conv=3)
-        self.decoderBlock4 = self.decoderConvBlock(512, 512, kernel_size=3, padding=1, n_conv=3)
-        self.decoderBlock3 = self.decoderConvBlock(256, 256, kernel_size=3, padding=1, n_conv=3)
-        self.decoderBlock2 = self.decoderConvBlock(128, 64, kernel_size=3, padding=1, n_conv=2)
-        self.decoderBlock1 = self.decoderConvBlock(64, 64, kernel_size=3, padding=1, n_conv=2)
+        self.decoderBlock5 = self.decoderConvBlock(in_channels=512, out_channels=512, kernel_size=3, padding=1, n_conv=3)
+        self.decoderBlock4 = self.decoderConvBlock(in_channels=512, out_channels=256, kernel_size=3, padding=1, n_conv=3)
+        self.decoderBlock3 = self.decoderConvBlock(in_channels=256, out_channels=128, kernel_size=3, padding=1, n_conv=3)
+        self.decoderBlock2 = self.decoderConvBlock(in_channels=128, out_channels=64, kernel_size=3, padding=1, n_conv=2)
+        self.decoderBlock1 = self.decoderConvBlock(in_channels=64, out_channels=64, kernel_size=3, padding=1, n_conv=2)
         #self.softmax = nn.Softmax(dim=1)
 
         # ATTENTION MODULES
@@ -114,14 +113,14 @@ class SegNetMTAN(nn.Module):
         self.encoderAttentionConv5 = nn.ModuleList()
         for task in range(n_tasks):
             self.encoderAttentionModule1.append(self.attentionModule(64, 64, 64))
-            self.encoderAttentionConv1.append(self.attentionConv(64, 64))
-            self.encoderAttentionModule2.append(self.attentionModule(128, 128, 128))
-            self.encoderAttentionConv2.append(self.attentionConv(128, 128))
-            self.encoderAttentionModule3.append(self.attentionModule(256, 256, 256))
-            self.encoderAttentionConv3.append(self.attentionConv(256, 256))
-            self.encoderAttentionModule4.append(self.attentionModule(512, 512, 512))
+            self.encoderAttentionConv1.append(self.attentionConv(64, 128))
+            self.encoderAttentionModule2.append(self.attentionModule(256, 128, 128))
+            self.encoderAttentionConv2.append(self.attentionConv(128, 256))
+            self.encoderAttentionModule3.append(self.attentionModule(512, 256, 256))
+            self.encoderAttentionConv3.append(self.attentionConv(256, 512))
+            self.encoderAttentionModule4.append(self.attentionModule(1024, 512, 512))
             self.encoderAttentionConv4.append(self.attentionConv(512, 512))
-            self.encoderAttentionModule5.append(self.attentionModule(512, 512, 512))
+            self.encoderAttentionModule5.append(self.attentionModule(1024, 512, 512))
             self.encoderAttentionConv5.append(self.attentionConv(512, 512))
         self.decoderAttentionModule1 = nn.ModuleList()
         self.decoderAttentionModule2 = nn.ModuleList()
@@ -134,20 +133,35 @@ class SegNetMTAN(nn.Module):
         self.decoderAttentionConv4 = nn.ModuleList()
         self.decoderAttentionConv5 = nn.ModuleList()
         for task in range(n_tasks):
-            self.decoderAttentionModule1.append(self.attentionModule(64, 64, 64))
+            self.decoderAttentionModule1.append(self.attentionModule(128, 64, 64))
             self.decoderAttentionConv1.append(self.attentionConv(64, 64))
-            self.decoderAttentionModule2.append(self.attentionModule(128, 128, 128))
-            self.decoderAttentionConv2.append(self.attentionConv(128, 128))
-            self.decoderAttentionModule3.append(self.attentionModule(256, 256, 256))
-            self.decoderAttentionConv3.append(self.attentionConv(256, 256))
-            self.decoderAttentionModule4.append(self.attentionModule(512, 512, 512))
-            self.decoderAttentionConv4.append(self.attentionConv(512, 512))
-            self.decoderAttentionModule5.append(self.attentionModule(512, 512, 512))
+            self.decoderAttentionModule2.append(self.attentionModule(192, 64, 64))
+            self.decoderAttentionConv2.append(self.attentionConv(128, 64))
+            self.decoderAttentionModule3.append(self.attentionModule(384, 128, 128))
+            self.decoderAttentionConv3.append(self.attentionConv(256, 128))
+            self.decoderAttentionModule4.append(self.attentionModule(768, 256, 256))
+            self.decoderAttentionConv4.append(self.attentionConv(512, 256))
+            self.decoderAttentionModule5.append(self.attentionModule(1024, 512, 512))
             self.decoderAttentionConv5.append(self.attentionConv(512, 512))
 
         self.prediction_task1 = self.predictionConv(64, 13) # NYUv2 13 classes
         self.prediction_task2 = self.predictionConv(64,1) # Depth
         self.prediction_task3 = self.predictionConv(64,3) # Normal
+
+        self.logsigma = nn.Parameter(torch.FloatTensor([-0.5, -0.5, -0.5]))
+        self.init_weights()
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.xavier_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         # ENCODER
@@ -187,40 +201,72 @@ class SegNetMTAN(nn.Module):
         dec_1_u = self.unpool(dec_2_p, idx1, output_size=enc_1_p.size())
         dec_1_p = self.decoderBlock1(dec_1_u)
 
+        # Printin all the shapes of the output tensors for each block
+        print("Encoder Block 1 Output Shape: ", enc_1_p.shape)
+        print("Encoder Block 1 Pooling Output Shape: ", x1.shape)
+        print("Encoder Block 1 Output Shape: ", enc_2_p.shape)
+        print("Encoder Block 1 Pooling Output Shape: ", x2.shape)
+        print("Encoder Block 1 Output Shape: ", enc_3_p.shape)
+        print("Encoder Block 1 Pooling Output Shape: ", x3.shape)
+        print("Encoder Block 1 Output Shape: ", enc_4_p.shape)
+        print("Encoder Block 1 Pooling Output Shape: ", x4.shape)
+        print("Encoder Block 1 Output Shape: ", enc_5_p.shape)
+        print("Encoder Block 1 Pooling Output Shape: ", x5.shape)
+        print("Decoder Block 1 Unpooling Output Shape: ", dec_5_u.shape)
+        print("Decoder Block 1 Output Shape: ", dec_5_p.shape)
+        print("Decoder Block 1 Unpooling Output Shape: ", dec_4_u.shape)
+        print("Decoder Block 1 Output Shape: ", dec_4_p.shape)
+        print("Decoder Block 1 Unpooling Output Shape: ", dec_3_u.shape)
+        print("Decoder Block 1 Output Shape: ", dec_3_p.shape)
+        print("Decoder Block 1 Unpooling Output Shape: ", dec_2_u.shape)
+        print("Decoder Block 1 Output Shape: ", dec_2_p.shape)
+        print("Decoder Block 1 Unpooling Output Shape: ", dec_1_u.shape)
+        print("Decoder Block 1 Output Shape: ", dec_1_p.shape)
+        print("ATTENTION")
+
         # ATTENTION MODULES
         enc_att = {i: [] for i in range(1, 6)} # encoder attention modules
         dec_att = {i: [] for i in range(1, 6)} # decoder attention modules
         for task in range(3):
             # Attention modules for encoder
             # conv -> bn -> ReLU -> conv -> bn -> sigmoid
-            ea1 = self.encoderAttentionModule1[task](x1)
+            print("Encoder Attention Block {} Input Shape: ".format(task+1), enc_1_u.shape)
+            ea1 = self.encoderAttentionModule1[task](enc_1_u)
+            print("After convs: ", ea1.shape)
+            print("Multiplied by enc_1_p: ", enc_1_p.shape)
             # element-wise multiplication with encoder feature map
             ea1 = (ea1 * enc_1_p)
+            print("After multiplication: ", ea1.shape)
              # conv -> bn -> ReLU
             ea1 = self.encoderAttentionConv1[task](ea1)
+            print("After conv: ", ea1.shape)
             # max pooling
             ea1 = F.max_pool2d(ea1, kernel_size=2, stride=2)
+            print("After max pooling: ", ea1.shape)
             enc_att[1].append(ea1)
 
-            ea2 = self.encoderAttentionModule2[task](torch.cat([x2, enc_att[1][task]], dim=1))
+            print("Encoder Attention Block {} Input Shape: ".format(task+2), enc_2_u.shape)
+            print("Encoder Attention Block {} Prev Att Shape: ".format(task+2), enc_att[1][task].shape)
+            print("Concatenation shape: ", torch.cat([enc_2_u, enc_att[1][task]], dim=1).shape)
+            ea2 = self.encoderAttentionModule2[task](torch.cat([enc_2_u, enc_att[1][task]], dim=1))
             ea2 = (ea2 * enc_2_p)
             ea2 = self.encoderAttentionConv2[task](ea2)
             ea2 = F.max_pool2d(ea2, kernel_size=2, stride=2)
             enc_att[2].append(ea2)
 
-            ea3 = self.encoderAttentionModule3[task](torch.cat([x3, enc_att[2][task]], dim=1)) # merge
+            ea3 = self.encoderAttentionModule3[task](torch.cat([enc_3_u, enc_att[2][task]], dim=1)) # merge
             ea3 = (ea3 * enc_3_p)
             ea3 = self.encoderAttentionConv3[task](ea3)
             ea3 = F.max_pool2d(ea3, kernel_size=2, stride=2)
             enc_att[3].append(ea3)
 
-            ea4 = self.encoderAttentionModule4[task](torch.cat([x4, enc_att[3][task]], dim=1))
+            ea4 = self.encoderAttentionModule4[task](torch.cat([enc_4_u, enc_att[3][task]], dim=1))
             ea4 = (ea4 * enc_4_p)
             ea4 = self.encoderAttentionConv4[task](ea4)
             ea4 = F.max_pool2d(ea4, kernel_size=2, stride=2)
             enc_att[4].append(ea4)
 
-            ea5 = self.encoderAttentionModule5[task](torch.cat([x5, enc_att[4][task]], dim=1))
+            ea5 = self.encoderAttentionModule5[task](torch.cat([enc_5_u, enc_att[4][task]], dim=1))
             ea5 = (ea5 * enc_5_p)
             ea5 = self.encoderAttentionConv5[task](ea5)
             ea5 = F.max_pool2d(ea5, kernel_size=2, stride=2)
@@ -237,9 +283,14 @@ class SegNetMTAN(nn.Module):
             da5 = (da5 * dec_5_p)
             dec_att[5].append(da5)
 
+            print("Decoder Attention Block {} Input Shape: ".format(task+1), dec_4_u.shape)
             da4 = F.interpolate(dec_att[5][task], scale_factor=2, mode='bilinear', align_corners=True)
+            print("Decoder Attention Block {} Prev Att Shape: ".format(task+1), dec_att[5][task].shape)
             da4 = self.decoderAttentionConv4[task](da4)
+            print("Concatenation shape: ", torch.cat([dec_4_u, da4], dim=1).shape)
             da4 = self.decoderAttentionModule4[task](torch.cat([dec_4_u, da4], dim=1))
+            print("After convs: ", da4.shape)
+            print("Multiplied by dec_4_p: ", dec_4_p.shape)
             da4 = (da4 * dec_4_p)
             dec_att[4].append(da4)
 
@@ -262,23 +313,23 @@ class SegNetMTAN(nn.Module):
             dec_att[1].append(da1)
 
         # Task prediction layers: 1: semantic segmentation, 2: depth estimation, 3: normal estimation
-        task1 = F.log_softmax(self.prediction_task1(dec_att_1[0]), dim=1)
-        task2 = self.prediction_task2(dec_att_1[1])
-        task3 = self.prediction_task3(dec_att_1[2])
+        task1 = F.log_softmax(self.prediction_task1(dec_att[1][0]), dim=1)
+        task2 = self.prediction_task2(dec_att[1][1])
+        task3 = self.prediction_task3(dec_att[1][2])
         task3 = task3 / torch.norm(task3, p=2, dim=1, keepdim=True)  # Normalization
 
-        return [task1, task2, task3]
+        return [task1, task2, task3], self.logsigma
 
     def decoderConvBlock(self, in_channels, out_channels, kernel_size=3, padding=1, n_conv=2):
         layers = []
-        layers.append(nn.Conv2d(in_channels, in_channels, kernel_size=kernel_size, padding=padding))
+        layers.append(nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=kernel_size, padding=padding))
         layers.append(nn.BatchNorm2d(in_channels))
         layers.append(nn.ReLU(inplace=True))
-        for _ in range(n_conv - 2):
-            layers.append(nn.Conv2d(in_channels, in_channels, kernel_size=kernel_size, padding=padding))
+        for _ in range(1, n_conv - 1):
+            layers.append(nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=kernel_size, padding=padding))
             layers.append(nn.BatchNorm2d(in_channels))
             layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding))
+        layers.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding))
         layers.append(nn.BatchNorm2d(out_channels))
         layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
