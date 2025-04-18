@@ -59,7 +59,7 @@ class NYUv2(Dataset):
         else:
             self.data_path = root + '/val'
 
-        if not os.path.exists(self.data_path):
+        '''if not os.path.exists(self.data_path):
             os.makedirs(self.data_path)
         if not os.path.exists(self.data_path + '/image'):
             os.makedirs(self.data_path + '/image')
@@ -68,7 +68,7 @@ class NYUv2(Dataset):
         if not os.path.exists(self.data_path + '/depth'):
             os.makedirs(self.data_path + '/depth')
         if not os.path.exists(self.data_path + '/normal'):
-            os.makedirs(self.data_path + '/normal')
+            os.makedirs(self.data_path + '/normal')'''
         # calculate data length
         self.data_len = len(fnmatch.filter(os.listdir(self.data_path + '/image'), '*.npy'))
 
