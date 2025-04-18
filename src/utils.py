@@ -6,14 +6,14 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 import os
 import glob
-
+from datetime import datetime
 
 
 """
 Define task metrics, loss functions and model trainer here.
 """
 
-def save_checkpoint(model, optimizer, scheduler, epoch, directory='models'):
+def save_checkpoint(model, optimizer, scheduler, epoch, directory='models', run_id=None):
     os.makedirs(directory, exist_ok=True)
     filename = os.path.join(directory, f'checkpoint_epoch_{epoch:03d}.pth')
     torch.save({
@@ -21,6 +21,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch, directory='models'):
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict(),
+        'run_id': run_id,
     }, filename)
 
 def load_checkpoint(model, optimizer, scheduler, directory='models', specific_file=None):
@@ -37,8 +38,9 @@ def load_checkpoint(model, optimizer, scheduler, directory='models', specific_fi
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    run_id = checkpoint['run_id'] if 'run_id' in checkpoint else None
     print(f"Checkpoint caricato da {path}")
-    return checkpoint['epoch']
+    return checkpoint['epoch'], run_id
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -158,13 +160,20 @@ def normal_error(x_pred, x_output):
 """
 
 
-def multi_task_trainer(train_loader, test_loader, multi_task_model, device, optimizer, scheduler, opt, total_epoch=200, resume=False, log_dir='runs'):
+def multi_task_trainer(train_loader, test_loader, multi_task_model, device, optimizer, scheduler, opt, total_epoch=200, resume=False, log_dir='runs', use_wandb=True):
     writer = SummaryWriter(log_dir=log_dir)
-    wandb.init(project="multi-task", config=opt.__dict__, dir=log_dir)
 
     start_epoch = 0
     if resume:
-        start_epoch = load_checkpoint(multi_task_model, optimizer, scheduler, directory='models')
+        start_epoch, run_id = load_checkpoint(multi_task_model, optimizer, scheduler, directory='models')
+        if use_wandb:
+            if run_id:
+                wandb.init(project="multi-task", config=opt.__dict__, dir=log_dir, id=run_id, resume='must')
+            else:
+                wandb.init(project="multi-task", config=opt.__dict__, dir=log_dir)
+    elif use_wandb:
+        wandb.init(project="multi-task", config=opt.__dict__, dir=log_dir)
+    run_id = wandb.run.id if use_wandb else None
 
     train_batch = len(train_loader)
     test_batch = len(test_loader)
@@ -253,31 +262,33 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
         scheduler.step()
         print('Epoch: {:04d} | TRAIN: {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f} {:.4f} {:.4f} ||'
             'TEST: {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f} {:.4f} {:.4f} '
-            .format(index, avg_cost[index, 0], avg_cost[index, 1], avg_cost[index, 2], avg_cost[index, 3],
-                    avg_cost[index, 4], avg_cost[index, 5], avg_cost[index, 6], avg_cost[index, 7], avg_cost[index, 8],
-                    avg_cost[index, 9], avg_cost[index, 10], avg_cost[index, 11], avg_cost[index, 12], avg_cost[index, 13],
-                    avg_cost[index, 14], avg_cost[index, 15], avg_cost[index, 16], avg_cost[index, 17], avg_cost[index, 18],
-                    avg_cost[index, 19], avg_cost[index, 20], avg_cost[index, 21], avg_cost[index, 22], avg_cost[index, 23]))
-        writer.add_scalars('Loss/train', {'semantic': avg_cost[index, 0],
-                                          'depth': avg_cost[index, 3],
-                                          'normal': avg_cost[index, 6]}, index)
-        writer.add_scalars('Loss/test', {'semantic': avg_cost[index, 12],
-                                         'depth': avg_cost[index, 15],
-                                         'normal': avg_cost[index, 18]}, index)
-        wandb.log({
-            'epoch': index,
-            'train/semantic_loss': avg_cost[index, 0],
-            'train/depth_loss': avg_cost[index, 3],
-            'train/normal_loss': avg_cost[index, 6],
-            'test/semantic_loss': avg_cost[index, 12],
-            'test/depth_loss': avg_cost[index, 15],
-            'test/normal_loss': avg_cost[index, 18]
-        })
-        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models')
+            .format(index+1, avg_cost[index+1, 0], avg_cost[index+1, 1], avg_cost[index+1, 2], avg_cost[index+1, 3],
+                    avg_cost[index+1, 4], avg_cost[index+1, 5], avg_cost[index+1, 6], avg_cost[index+1, 7], avg_cost[index+1, 8],
+                    avg_cost[index+1, 9], avg_cost[index+1, 10], avg_cost[index+1, 11], avg_cost[index+1, 12], avg_cost[index+1, 13],
+                    avg_cost[index+1, 14], avg_cost[index+1, 15], avg_cost[index+1, 16], avg_cost[index+1, 17], avg_cost[index+1, 18],
+                    avg_cost[index+1, 19], avg_cost[index+1, 20], avg_cost[index+1, 21], avg_cost[index+1, 22], avg_cost[index+1, 23]))
+        writer.add_scalars('Loss/train', {'semantic': avg_cost[index+1, 0],
+                                          'depth': avg_cost[index+1, 3],
+                                          'normal': avg_cost[index+1, 6]}, index)
+        writer.add_scalars('Loss/test', {'semantic': avg_cost[index+1, 12],
+                                         'depth': avg_cost[index+1, 15],
+                                         'normal': avg_cost[index+1, 18]}, index)
+        if use_wandb:
+            wandb.log({
+                'epoch': index+1,
+                'train/semantic_loss': avg_cost[index+1, 0],
+                'train/depth_loss': avg_cost[index+1, 3],
+                'train/normal_loss': avg_cost[index+1, 6],
+                'test/semantic_loss': avg_cost[index+1, 12],
+                'test/depth_loss': avg_cost[index+1, 15],
+                'test/normal_loss': avg_cost[index+1, 18]
+            })
+        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models', run_id=run_id)
     # saving the results of the last epoch in a csv file, the name of the file will be different for each run
     os.makedirs('results', exist_ok=True)
     opt.task = "multi_task"
-    filename = os.path.join('results', f'{opt.task}_lambda_{opt.weight}_T_{opt.temp}.csv')
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    filename = os.path.join('results', f'{opt.task}_lambda_{opt.weight}_T_{opt.temp}_{current_time}.csv')
     with open(filename, 'w') as f:
         f.write('epoch,train_loss_semantic,train_loss_depth,train_loss_normal,test_loss_semantic,test_loss_depth,test_loss_normal\n')
         for i in range(total_epoch):

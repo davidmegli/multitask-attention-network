@@ -18,6 +18,7 @@ parser.add_argument('--temp', default=2.0, type=float, help='temperature for DWA
 parser.add_argument('--apply_augmentation', action='store_true', help='toggle to apply data augmentation on NYUv2')
 parser.add_argument('--downsample_ratio', default=1, type=float, help='downsample ratio for data augmentation')
 parser.add_argument('--resume', default=False, action='store_true', help='resume training from the latest checkpoint')
+parser.add_argument('--single_task', default=False, action='store_true', help='train single task network')
 opt = parser.parse_args()
 
 
@@ -63,6 +64,8 @@ nyuv2_test_loader = torch.utils.data.DataLoader(
     shuffle=False)
 
 epochs = opt.epochs
+# TODO: if opt.single_task train single task network (SegNet) instead of multi-task network (SegNetMTAN)
+# TODO: add option to train SegNetMTAN on single tasks (2 separate calls to singe_task_trainer w 2 SegNetMTANs)
 # Train and evaluate multi-task network
 multi_task_trainer(nyuv2_train_loader,
                    nyuv2_test_loader,
