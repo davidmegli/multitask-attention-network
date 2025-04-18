@@ -71,5 +71,5 @@ multi_task_trainer(nyuv2_train_loader,
                    optimizer,
                    scheduler,
                    opt,
-                   epochs=epochs,
+                   total_epoch=epochs,
                    resume=opt.resume)
