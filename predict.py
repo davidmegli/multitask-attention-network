@@ -54,7 +54,7 @@ model.eval()
 
 
 # === Dataset e DataLoader ===
-dataset_path = r"path/to/nyuv2"  # Cambia con il percorso corretto del dataset
+dataset_path = r""
 downsample_ratio = 1
 test_set = NYUv2(root=dataset_path, train=False, downsample_ratio=downsample_ratio)
 test_loader = DataLoader(test_set, batch_size=2, shuffle=False)

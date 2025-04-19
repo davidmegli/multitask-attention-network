@@ -82,7 +82,7 @@ if not opt.single_task:
                     resume=opt.resume)
 else:
     # Train and evaluate single task network (SegNetMTAN)
-    print('Training single task network (SegNetMTAN)')
+    print('Training single task network (SegNetMTAN) on {} task'.format(opt.task))
     single_task_trainer(nyuv2_train_loader,
                         nyuv2_test_loader,
                         SegNet_MTAN,
