@@ -302,7 +302,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
                 'test/normal_mean_22.5': avg_cost[index, 22],
                 'test/normal_mean_30': avg_cost[index, 23]
             })
-        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models', run_id=run_id)
+        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models', run_id=run_id, model_name=f"SegNetMTAN_multitask_{opt.weight}")
     # saving the results of the last epoch in a csv file, the name of the file will be different for each run
     os.makedirs('results', exist_ok=True)
     opt.task = "multi_task"
