@@ -368,11 +368,10 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
             train_data, train_label = train_data.to(device), train_label.long().to(device)
             train_depth, train_normal = train_depth.to(device), train_normal.to(device)
 
-            train_preds, _ = single_task_model(train_data)
+            train_pred = single_task_model(train_data)
             optimizer.zero_grad()
 
             if opt.task == 'semantic':
-                train_pred = train_preds[0]
                 train_loss = model_fit(train_pred, train_label, opt.task)
                 train_loss.backward()
                 optimizer.step()
@@ -381,7 +380,6 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
                 cost[0] = train_loss.item()
 
             if opt.task == 'depth':
-                train_pred = train_preds[1]
                 train_loss = model_fit(train_pred, train_depth, opt.task)
                 train_loss.backward()
                 optimizer.step()
@@ -389,7 +387,6 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
                 cost[4], cost[5] = depth_error(train_pred, train_depth)
 
             if opt.task == 'normal':
-                train_pred = train_preds[2]
                 train_loss = model_fit(train_pred, train_normal, opt.task)
                 train_loss.backward()
                 optimizer.step()
@@ -411,23 +408,20 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
                 test_data, test_label = test_data.to(device),  test_label.long().to(device)
                 test_depth, test_normal = test_depth.to(device), test_normal.to(device)
 
-                test_pred, _ = single_task_model(test_data)
-
+                test_pred = single_task_model(test_data)
+                
                 if opt.task == 'semantic':
-                    test_pred = test_pred[0]
                     test_loss = model_fit(test_pred, test_label, opt.task)
 
                     conf_mat.update(test_pred.argmax(1).flatten(), test_label.flatten())
                     cost[12] = test_loss.item()
 
                 if opt.task == 'depth':
-                    test_pred = test_pred[1]
                     test_loss = model_fit(test_pred, test_depth, opt.task)
                     cost[15] = test_loss.item()
                     cost[16], cost[17] = depth_error(test_pred, test_depth)
 
                 if opt.task == 'normal':
-                    test_pred = test_pred[2]
                     test_loss = model_fit(test_pred, test_normal, opt.task)
                     cost[18] = test_loss.item()
                     cost[19], cost[20], cost[21], cost[22], cost[23] = normal_error(test_pred, test_normal)
@@ -531,3 +525,7 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
                         f'{avg_cost[i, 18]},{avg_cost[i, 19]},{avg_cost[i, 20]},'
                         f'{avg_cost[i, 21]},{avg_cost[i, 22]},{avg_cost[i, 23]}\n')
     print(f"Results saved in {filename}")
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

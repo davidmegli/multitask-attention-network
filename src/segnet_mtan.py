@@ -11,11 +11,13 @@ import torch.nn.functional as F
 from torchvision import models
 
 class SegNetMTAN(nn.Module):
-    def __init__(self, pretrained=True):
+    def __init__(self, pretrained=True, tasks="all", light=False):
         super(SegNetMTAN, self).__init__()
         vgg16 = models.vgg16_bn(pretrained=pretrained)
         features = list(vgg16.features.children())
         self.class_nb = 13 # NYUv2 13 classes
+        self.tasks = tasks
+        self.light = light
 
         # VGG16_BN architecture:
         """ 
@@ -78,15 +80,15 @@ class SegNetMTAN(nn.Module):
         )
         ) """
 
+        n_conv1 = 2 if self.light else 3
         # DECODER
         self.unpool = nn.MaxUnpool2d(kernel_size=2, stride=2, padding=0)
-        self.decoderBlock5 = self.decoderConvBlock(in_channels=512, out_channels=512, kernel_size=3, padding=1, n_conv=3)
-        self.decoderBlock4 = self.decoderConvBlock(in_channels=512, out_channels=256, kernel_size=3, padding=1, n_conv=3)
-        self.decoderBlock3 = self.decoderConvBlock(in_channels=256, out_channels=128, kernel_size=3, padding=1, n_conv=3)
+        self.decoderBlock5 = self.decoderConvBlock(in_channels=512, out_channels=512, kernel_size=3, padding=1, n_conv=n_conv1)
+        self.decoderBlock4 = self.decoderConvBlock(in_channels=512, out_channels=256, kernel_size=3, padding=1, n_conv=n_conv1)
+        self.decoderBlock3 = self.decoderConvBlock(in_channels=256, out_channels=128, kernel_size=3, padding=1, n_conv=n_conv1)
         self.decoderBlock2 = self.decoderConvBlock(in_channels=128, out_channels=64, kernel_size=3, padding=1, n_conv=2)
         self.decoderBlock1 = self.decoderConvBlock(in_channels=64, out_channels=64, kernel_size=3, padding=1, n_conv=2)
-        #self.softmax = nn.Softmax(dim=1)
-
+        
         # ATTENTION MODULES
         n_tasks = 3
         self.encoderAttentionModule1 = nn.ModuleList()
@@ -285,7 +287,14 @@ class SegNetMTAN(nn.Module):
         task3 = self.prediction_task3(dec_att[1][2])
         task3 = task3 / torch.norm(task3, p=2, dim=1, keepdim=True)  # Normalization
 
-        return [task1, task2, task3], self.logsigma
+        if self.tasks == "all":
+            return [task1, task2, task3], self.logsigma
+        elif self.tasks == "segmentation":
+            return task1, self.logsigma
+        elif self.tasks == "depth":
+            return task2, self.logsigma
+        elif self.tasks == "normal":
+            return task3, self.logsigma
 
     def decoderConvBlock(self, in_channels, out_channels, kernel_size=3, padding=1, n_conv=2):
         layers = []

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import argparse
 import torch.utils.data.sampler as sampler
 from src.segnet_mtan import SegNetMTAN
+from src.segnet import SegNet
 from src.utils import multi_task_trainer, count_parameters
 
 from create_dataset import *
@@ -19,23 +20,29 @@ parser.add_argument('--apply_augmentation', action='store_true', help='toggle to
 parser.add_argument('--downsample_ratio', default=1, type=float, help='downsample ratio for data augmentation')
 parser.add_argument('--resume', default=False, action='store_true', help='resume training from the latest checkpoint')
 parser.add_argument('--task', default='all', type=str, help='task to train: all, semantic, depth, normal')
-parser.add_argument('--single_task', default=False, action='store_true', help='train single task network (SegNet)')
+parser.add_argument('--single_task', default=False, action='store_true', help='train single task network')
+parser.add_argument('--segnet', default=False, action='store_true', help='train SegNet instead of SegNetMTAN')
 opt = parser.parse_args()
 
 
 # define model, optimiser and scheduler
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Using device: {}'.format(device))
-SegNet_MTAN = SegNetMTAN().to(device)
-optimizer = optim.Adam(SegNet_MTAN.parameters(), lr=1e-4)
+if not opt.segnet:
+    print('Using SegNetMTAN model')
+    model = SegNetMTAN().to(device)
+else:
+    print('Using SegNet model')
+    model = SegNet(opt.task).to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
 
 '''import sys
 print("Model Structure: {}".format(SegNet_MTAN))
 sys.exit(0)'''
 
-print('Parameter Space: ABS: {:.1f}, REL: {:.4f}'.format(count_parameters(SegNet_MTAN),
-                                                         count_parameters(SegNet_MTAN) / 24981069))
+print('Parameter Space: ABS: {:.1f}, REL: {:.4f}'.format(count_parameters(model),
+                                                         count_parameters(model) / 24981069))
 print('LOSS FORMAT: SEMANTIC_LOSS MEAN_IOU PIX_ACC | DEPTH_LOSS ABS_ERR REL_ERR | NORMAL_LOSS MEAN MED <11.25 <22.5 <30')
 
 # define dataset
@@ -73,7 +80,7 @@ if not opt.single_task:
     print('Training multi-task network (SegNetMTAN)')
     multi_task_trainer(nyuv2_train_loader,
                     nyuv2_test_loader,
-                    SegNet_MTAN,
+                    model,
                     device,
                     optimizer,
                     scheduler,
@@ -85,7 +92,7 @@ else:
     print('Training single task network (SegNetMTAN) on {} task'.format(opt.task))
     single_task_trainer(nyuv2_train_loader,
                         nyuv2_test_loader,
-                        SegNet_MTAN,
+                        model,
                         device,
                         optimizer,
                         scheduler,
