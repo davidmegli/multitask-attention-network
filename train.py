@@ -22,6 +22,7 @@ parser.add_argument('--resume', default=False, action='store_true', help='resume
 parser.add_argument('--task', default='all', type=str, help='task to train: all, semantic, depth, normal')
 parser.add_argument('--single_task', default=False, action='store_true', help='train single task network')
 parser.add_argument('--segnet', default=False, action='store_true', help='train SegNet instead of SegNetMTAN')
+parser.add_argument('--lambda_consistency', default=0.0, type=float, help='weight for inter-task normal-depth consistency loss')
 opt = parser.parse_args()
 
 

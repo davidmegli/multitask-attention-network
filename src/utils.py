@@ -67,53 +67,35 @@ def model_fit(x_pred, x_output, task_type):
 
     return loss
 
-# Legacy: compute mIoU and Acc. for each image and average across all images.
+import torch.nn.functional as F
 
-# def compute_miou(x_pred, x_output):
-#     _, x_pred_label = torch.max(x_pred, dim=1)
-#     x_output_label = x_output
-#     batch_size = x_pred.size(0)
-#     class_nb = x_pred.size(1)
-#     device = x_pred.device
-#     for i in range(batch_size):
-#         true_class = 0
-#         first_switch = True
-#         invalid_mask = (x_output[i] >= 0).float()
-#         for j in range(class_nb):
-#             pred_mask = torch.eq(x_pred_label[i], j * torch.ones(x_pred_label[i].shape).long().to(device))
-#             true_mask = torch.eq(x_output_label[i], j * torch.ones(x_output_label[i].shape).long().to(device))
-#             mask_comb = pred_mask.float() + true_mask.float()
-#             union = torch.sum((mask_comb > 0).float() * invalid_mask)  # remove non-defined pixel predictions
-#             intsec = torch.sum((mask_comb > 1).float())
-#             if union == 0:
-#                 continue
-#             if first_switch:
-#                 class_prob = intsec / union
-#                 first_switch = False
-#             else:
-#                 class_prob = intsec / union + class_prob
-#             true_class += 1
-#         if i == 0:
-#             batch_avg = class_prob / true_class
-#         else:
-#             batch_avg = class_prob / true_class + batch_avg
-#     return batch_avg / batch_size
-#
-#
-# def compute_iou(x_pred, x_output):
-#     _, x_pred_label = torch.max(x_pred, dim=1)
-#     x_output_label = x_output
-#     batch_size = x_pred.size(0)
-#     for i in range(batch_size):
-#         if i == 0:
-#             pixel_acc = torch.div(
-#                 torch.sum(torch.eq(x_pred_label[i], x_output_label[i]).float()),
-#                 torch.sum((x_output_label[i] >= 0).float()))
-#         else:
-#             pixel_acc = pixel_acc + torch.div(
-#                 torch.sum(torch.eq(x_pred_label[i], x_output_label[i]).float()),
-#                 torch.sum((x_output_label[i] >= 0).float()))
-#     return pixel_acc / batch_size
+def depth_to_normals(depth):
+    """
+    Approximate surface normals from a depth map.
+    depth: (B, 1, H, W)
+    Returns: (B, 3, H, W) normal map
+    """
+    dzdx = depth[:, :, :, :-1] - depth[:, :, :, 1:]
+    dzdy = depth[:, :, :-1, :] - depth[:, :, 1:, :]
+
+    dzdx = F.pad(dzdx, (0, 1, 0, 0), mode='replicate')
+    dzdy = F.pad(dzdy, (0, 0, 0, 1), mode='replicate')
+
+    normal_x = -dzdx
+    normal_y = -dzdy
+    normal_z = torch.ones_like(dzdx)
+
+    normal = torch.cat([normal_x, normal_y, normal_z], dim=1)
+    normal = F.normalize(normal, dim=1)
+    return normal
+
+def normal_consistency_loss(predicted, approx):
+    """
+    Cosine similarity loss between predicted normals and those estimated from depth.
+    Both are (B, 3, H, W)
+    """
+    cosine_sim = F.cosine_similarity(predicted, approx, dim=1)  # (B, H, W)
+    return (1 - cosine_sim).mean()
 
 
 # New mIoU and Acc. formula: accumulate every pixel and average across all pixels in all images
@@ -211,11 +193,23 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
             train_loss = [model_fit(train_pred[0], train_label, 'semantic'),
                           model_fit(train_pred[1], train_depth, 'depth'),
                           model_fit(train_pred[2], train_normal, 'normal')]
-
+            
+            # Calcolo la loss di consistenza normals-depth
+            with torch.no_grad():  # non voglio backprop su questa conversione
+                approx_normals = depth_to_normals(train_pred[1])
+            consistency_loss = normal_consistency_loss(train_pred[2], approx_normals)
             if opt.weight == 'equal' or opt.weight == 'dwa':
                 loss = sum([lambda_weight[i, index] * train_loss[i] for i in range(3)])
             else:
                 loss = sum(1 / (2 * torch.exp(logsigma[i])) * train_loss[i] + logsigma[i] / 2 for i in range(3))
+            # Aggiungo la loss di consistenza
+            loss += opt.lambda_consistency * consistency_loss
+
+
+            #if opt.weight == 'equal' or opt.weight == 'dwa':
+            #    loss = sum([lambda_weight[i, index] * train_loss[i] for i in range(3)])
+            #else:
+            #    loss = sum(1 / (2 * torch.exp(logsigma[i])) * train_loss[i] + logsigma[i] / 2 for i in range(3))
 
             loss.backward()
             optimizer.step()
@@ -289,6 +283,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
                 'train/normal_mean_11.25': avg_cost[index, 9],
                 'train/normal_mean_22.5': avg_cost[index, 10],
                 'train/normal_mean_30': avg_cost[index, 11],
+                'train/consistency_loss': consistency_loss.item(),
                 'test/semantic_loss': avg_cost[index, 12],
                 'test/semantic_miou': avg_cost[index, 13],
                 'test/semantic_acc': avg_cost[index, 14],
@@ -302,7 +297,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
                 'test/normal_mean_22.5': avg_cost[index, 22],
                 'test/normal_mean_30': avg_cost[index, 23]
             })
-        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models', run_id=run_id, model_name=f"SegNetMTAN_multitask_{opt.weight}")
+        save_checkpoint(multi_task_model, optimizer, scheduler, index + 1, directory='models', run_id=run_id, model_name=f"SegNetMTAN_multitask_{opt.weight}_lc_{opt.lambda_consistency}")
     # saving the results of the last epoch in a csv file, the name of the file will be different for each run
     os.makedirs('results', exist_ok=True)
     opt.task = "multi_task"
