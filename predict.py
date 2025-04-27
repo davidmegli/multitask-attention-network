@@ -7,7 +7,7 @@ import numpy as np
 
 from src.segnet_mtan import SegNetMTAN
 from create_dataset import NYUv2
-from utils import count_parameters  # solo se vuoi stampare il numero di parametri
+from utils import count_parameters
 
 
 # === Utility per convertire tensori in immagini salvabili ===

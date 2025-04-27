@@ -7,6 +7,8 @@ import wandb
 import os
 import glob
 from datetime import datetime
+from PIL import Image
+from matplotlib import cm
 
 
 """
@@ -69,6 +71,26 @@ def model_fit(x_pred, x_output, task_type):
 
 import torch.nn.functional as F
 
+def nyu_palette():
+    nyu_palette = [
+        [  0,   0,   0],  # 0: unlabeled (o background, se usato)
+        [  0,  64, 128],  # 1: bed
+        [  0, 128, 192],  # 2: books
+        [128,  64, 128],  # 3: ceiling
+        [  0, 128,  64],  # 4: chair
+        [192, 192, 128],  # 5: floor
+        [128,   0,  64],  # 6: furniture
+        [ 64,  64, 128],  # 7: objects
+        [128,   0, 128],  # 8: painting
+        [ 64,   0, 128],  # 9: sofa
+        [ 64, 128, 128],  # 10: table
+        [192, 128, 128],  # 11: tv
+        [ 64,   0,   0],  # 12: wall
+        [ 64, 192,   0],  # 13: window (opzionale, dipende se consideri 13 o 14)
+    ]
+    return [c for rgb in nyu_palette for c in rgb]
+
+
 def depth_to_normals(depth):
     """
     Approximate surface normals from a depth map.
@@ -97,6 +119,39 @@ def normal_consistency_loss(predicted, approx):
     cosine_sim = F.cosine_similarity(predicted, approx, dim=1)  # (B, H, W)
     return (1 - cosine_sim).mean()
 
+def normalize_array(arr):
+    arr = arr.astype(np.float32)
+    if np.max(arr) - np.min(arr) > 0:
+        arr = (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
+    else:
+        arr = np.zeros_like(arr)
+    return arr
+
+def depth_to_colormap(depth):
+    depth = normalize_array(depth)
+    cmap = cm.get_cmap('magma')
+    colored = cmap(depth)[:, :, :3]  # RGB only
+    return (colored * 255).astype(np.uint8)
+
+def normal_to_rgb(normals):
+    if normals.shape[0] == 3:
+        normals = normals.transpose(1, 2, 0)  # (3, H, W) -> (H, W, 3)
+    normals = (normals + 1) / 2  # [-1, 1] → [0, 1]
+    normals = np.clip(normals, 0, 1)
+    return (normals * 255).astype(np.uint8)
+
+def segmentation_to_color(seg, palette=None):
+    seg_img = Image.fromarray(seg.astype(np.uint8), mode='P')
+    if palette:
+        seg_img.putpalette(palette)
+    return seg_img.convert("RGB")
+
+def image_from_npy(img):
+    if img.shape[0] == 3:
+        img = img.transpose(1, 2, 0)  # (3, H, W) -> (H, W, 3)
+    if img.max() <= 1.0:
+        img = (img * 255).astype(np.uint8)
+    return img.astype(np.uint8)
 
 # New mIoU and Acc. formula: accumulate every pixel and average across all pixels in all images
 class ConfMatrix(object):
@@ -196,7 +251,7 @@ def multi_task_trainer(train_loader, test_loader, multi_task_model, device, opti
             
             # Calcolo la loss di consistenza normals-depth
             with torch.no_grad():  # non voglio backprop su questa conversione
-                approx_normals = depth_to_normals(train_pred[1])
+                approx_normals = depth_to_normals(train_depth)
             consistency_loss = normal_consistency_loss(train_pred[2], approx_normals)
             if opt.weight == 'equal' or opt.weight == 'dwa':
                 loss = sum([lambda_weight[i, index] * train_loss[i] for i in range(3)])

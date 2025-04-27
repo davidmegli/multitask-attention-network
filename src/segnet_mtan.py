@@ -88,7 +88,7 @@ class SegNetMTAN(nn.Module):
         self.decoderBlock3 = self.decoderConvBlock(in_channels=256, out_channels=128, kernel_size=3, padding=1, n_conv=n_conv1)
         self.decoderBlock2 = self.decoderConvBlock(in_channels=128, out_channels=64, kernel_size=3, padding=1, n_conv=2)
         self.decoderBlock1 = self.decoderConvBlock(in_channels=64, out_channels=64, kernel_size=3, padding=1, n_conv=2)
-        
+
         # ATTENTION MODULES
         n_tasks = 3
         self.encoderAttentionModule1 = nn.ModuleList()
@@ -169,7 +169,7 @@ class SegNetMTAN(nn.Module):
                 nn.init.xavier_normal_(m.weight)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, return_attentions=False):
         # ENCODER
         enc_1_u = self.encoderBlock1A(x) # encoder block 1, conv layer 1
         enc_1_p = self.encoderBlock1B(enc_1_u) # encoder block 1, conv layer 2
@@ -287,6 +287,8 @@ class SegNetMTAN(nn.Module):
         task3 = self.prediction_task3(dec_att[1][2])
         task3 = task3 / torch.norm(task3, p=2, dim=1, keepdim=True)  # Normalization
 
+        if return_attentions:
+            return [task1, task2, task3], self.logsigma, enc_att, dec_att
         if self.tasks == "all":
             return [task1, task2, task3], self.logsigma
         elif self.tasks == "segmentation":

@@ -105,9 +105,11 @@ class SegNet(nn.Module):
         # define task prediction layers
         if self.task == 'semantic':
             pred = F.log_softmax(self.pred_task(g_decoder[-1][-1]), dim=1)
-        if self.task == 'depth':
+        elif self.task == 'depth':
             pred = self.pred_task(g_decoder[-1][-1])
-        if self.task == 'normal':
+        elif self.task == 'normal':
             pred = self.pred_task(g_decoder[-1][-1])
             pred = pred / torch.norm(pred, p=2, dim=1, keepdim=True)
+        else:
+            raise ValueError(f"Unsupported task: {self.task}")
         return pred
