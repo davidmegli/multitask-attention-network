@@ -31,10 +31,10 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Using device: {}'.format(device))
 if not opt.segnet:
     print('Using SegNetMTAN model')
-    model = SegNetMTAN().to(device)
+    model = SegNetMTAN(tasks=opt.task).to(device)
 else:
     print('Using SegNet model')
-    model = SegNet(opt.task).to(device)
+    model = SegNet(task=opt.task).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
 

@@ -90,7 +90,10 @@ class SegNetMTAN(nn.Module):
         self.decoderBlock1 = self.decoderConvBlock(in_channels=64, out_channels=64, kernel_size=3, padding=1, n_conv=2)
 
         # ATTENTION MODULES
-        n_tasks = 3
+        if tasks == "all":
+            self.n_tasks = 3
+        elif tasks in ["semantic", "segmentation","normal", "depth"]:
+            self.n_tasks = 1
         self.encoderAttentionModule1 = nn.ModuleList()
         self.encoderAttentionModule2 = nn.ModuleList()
         self.encoderAttentionModule3 = nn.ModuleList()
@@ -101,7 +104,7 @@ class SegNetMTAN(nn.Module):
         self.encoderAttentionConv3 = nn.ModuleList()
         self.encoderAttentionConv4 = nn.ModuleList()
         self.encoderAttentionConv5 = nn.ModuleList()
-        for task in range(n_tasks):
+        for task in range(self.n_tasks):
             self.encoderAttentionModule1.append(self.attentionModule(64, 64, 64))
             self.encoderAttentionConv1.append(self.attentionConv(64, 128))
             self.encoderAttentionModule2.append(self.attentionModule(256, 128, 128))
@@ -122,7 +125,7 @@ class SegNetMTAN(nn.Module):
         self.decoderAttentionConv3 = nn.ModuleList()
         self.decoderAttentionConv4 = nn.ModuleList()
         self.decoderAttentionConv5 = nn.ModuleList()
-        for task in range(n_tasks):
+        for task in range(self.n_tasks):
             self.decoderAttentionModule1.append(self.attentionModule(128, 64, 64))
             self.decoderAttentionConv1.append(self.attentionConv(64, 64))
             self.decoderAttentionModule2.append(self.attentionModule(192, 64, 64))
@@ -134,9 +137,12 @@ class SegNetMTAN(nn.Module):
             self.decoderAttentionModule5.append(self.attentionModule(1024, 512, 512))
             self.decoderAttentionConv5.append(self.attentionConv(512, 512))
 
-        self.prediction_task1 = self.predictionConv(64, 13) # NYUv2 13 classes
-        self.prediction_task2 = self.predictionConv(64,1) # Depth
-        self.prediction_task3 = self.predictionConv(64,3) # Normal
+        if self.tasks == "all" or self.tasks == "semantic" or self.tasks == "segmentation":
+            self.prediction_task1 = self.predictionConv(64, 13) # NYUv2 13 classes
+        if self.tasks == "all" or self.tasks == "depth":
+            self.prediction_task2 = self.predictionConv(64,1) # Depth
+        if self.tasks == "all" or self.tasks == "normal":
+            self.prediction_task3 = self.predictionConv(64,3) # Normal
 
         self.logsigma = nn.Parameter(torch.FloatTensor([-0.5, -0.5, -0.5]))
         if pretrained:
@@ -210,7 +216,7 @@ class SegNetMTAN(nn.Module):
         # ATTENTION MODULES
         enc_att = {i: [] for i in range(1, 6)} # encoder attention modules
         dec_att = {i: [] for i in range(1, 6)} # decoder attention modules
-        for task in range(3):
+        for task in range(self.n_tasks):
             # Attention modules for encoder
             # conv -> bn -> ReLU -> conv -> bn -> sigmoid
             ea1 = self.encoderAttentionModule1[task](enc_1_u)
@@ -282,21 +288,24 @@ class SegNetMTAN(nn.Module):
             dec_att[1].append(da1)
 
         # Task prediction layers: 1: semantic segmentation, 2: depth estimation, 3: normal estimation
-        task1 = F.log_softmax(self.prediction_task1(dec_att[1][0]), dim=1)
-        task2 = self.prediction_task2(dec_att[1][1])
-        task3 = self.prediction_task3(dec_att[1][2])
-        task3 = task3 / torch.norm(task3, p=2, dim=1, keepdim=True)  # Normalization
+        if self.tasks == "all" or self.tasks == "semantic" or self.tasks == "segmentation":
+            task1 = F.log_softmax(self.prediction_task1(dec_att[1][0]), dim=1)
+        if self.tasks == "all" or self.tasks == "depth":
+            task2 = self.prediction_task2(dec_att[1][1])
+        if self.tasks == "all" or self.tasks == "normal":
+            task3 = self.prediction_task3(dec_att[1][2])
+            task3 = task3 / torch.norm(task3, p=2, dim=1, keepdim=True)  # Normalization
 
         if return_attentions:
             return [task1, task2, task3], self.logsigma, enc_att, dec_att
         if self.tasks == "all":
             return [task1, task2, task3], self.logsigma
-        elif self.tasks == "segmentation":
-            return task1, self.logsigma
+        elif self.tasks == "segmentation" or self.tasks == "semantic":
+            return task1#, self.logsigma
         elif self.tasks == "depth":
-            return task2, self.logsigma
+            return task2#, self.logsigma
         elif self.tasks == "normal":
-            return task3, self.logsigma
+            return task3#, self.logsigma
 
     def decoderConvBlock(self, in_channels, out_channels, kernel_size=3, padding=1, n_conv=2):
         layers = []

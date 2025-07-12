@@ -419,6 +419,12 @@ def single_task_trainer(train_loader, test_loader, single_task_model, device, op
             train_depth, train_normal = train_depth.to(device), train_normal.to(device)
 
             train_pred = single_task_model(train_data)
+            # checking if single_task_model is of class SegNetMTAN
+            #if single_task_model.__class__.__name__ == 'SegNetMTAN':
+                #print(single_task_model.__class__.__name__)
+                #print(single_task_model.tasks)
+                #train_pred = train_pred[0]
+                #train_pred.device = device  # ensure train_pred is on the correct device
             optimizer.zero_grad()
 
             if opt.task == 'semantic':
