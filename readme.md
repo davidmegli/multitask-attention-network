@@ -49,6 +49,10 @@ Argument	Description	Default
 --segnet	Train baseline SegNet instead of MTAN	False
 --lambda_consistency	Weight for inter-task consistency loss (normals-depth)	0.0
 
+## Dataset
+
+The `NYUv2` dataset, pre-processed by the authors, can be found [here](https://www.dropbox.com/sh/86nssgwm6hm3vkb/AACrnUQ4GxpdrBbLjb6n-mWNa?dl=0).
+
 
 ## Supported Tasks
 The model supports training on the NYUv2 dataset for the following tasks:
